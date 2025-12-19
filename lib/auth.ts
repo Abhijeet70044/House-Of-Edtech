@@ -34,9 +34,13 @@ export async function verifySession(token?: string | null) {
 }
 
 export async function getSessionFromRequest(req?: NextRequest) {
-  const token =
-    req?.cookies.get(SESSION_COOKIE)?.value ||
-    (await cookies()).get(SESSION_COOKIE)?.value;
+  let token: string | undefined;
+  if (req) {
+    token = req.cookies.get(SESSION_COOKIE)?.value;
+  } else {
+    const cookieStore = await cookies();
+    token = cookieStore.get(SESSION_COOKIE)?.value;
+  }
   return verifySession(token);
 }
 

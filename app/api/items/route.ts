@@ -11,8 +11,8 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // All logged-in users see the same inventory (no owner filter)
   const items = await prisma.item.findMany({
-    where: { ownerId: user.id },
     orderBy: { updatedAt: "desc" },
   });
 

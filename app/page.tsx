@@ -69,6 +69,7 @@ export default function Home() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const canEdit = user?.role === "ADMIN";
 
   const itemForm = useForm<ItemPayload>({
     defaultValues: {
@@ -87,10 +88,8 @@ export default function Home() {
     const init = async () => {
       try {
         const data = await jsonFetch<{ user: User | null }>("/api/auth/me");
-        if (data.user) {
-          setUser(data.user);
-          await loadItems();
-        }
+        setUser(data.user);
+        await loadItems();
       } catch {
         // ignore
       } finally {
@@ -127,8 +126,8 @@ export default function Home() {
   };
 
   const handleCreateItem = async (payload: ItemPayload) => {
-    if (user?.role !== "ADMIN") {
-      alert("Only admins can add items.");
+    if (!canEdit) {
+      setActionMessage("Sign in as admin to add items.");
       return;
     }
 
@@ -150,8 +149,8 @@ export default function Home() {
   };
 
   const handleUpdateItem = async (id: string, payload: Partial<Item>) => {
-    if (user?.role !== "ADMIN") {
-      alert("Only admins can update items.");
+    if (!canEdit) {
+      setActionMessage("Sign in as admin to update items.");
       return;
     }
 
@@ -169,8 +168,8 @@ export default function Home() {
   };
 
   const handleDeleteItem = async (id: string) => {
-    if (user?.role !== "ADMIN") {
-      alert("Only admins can delete items.");
+    if (!canEdit) {
+      setActionMessage("Sign in as admin to delete items.");
       return;
     }
 
@@ -248,7 +247,7 @@ export default function Home() {
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Inventory</h2>
                   <p className="text-sm text-slate-600">
-                    Track SKUs, quantities, stock thresholds, and locations.
+                    Shared inventory list. Sign in as admin to edit.
                   </p>
                 </div>
                 <div className="flex gap-2 text-sm">
@@ -276,6 +275,7 @@ export default function Home() {
                       <ItemRow
                         key={item.id}
                         item={item}
+                        canEdit={canEdit}
                         onDelete={() => handleDeleteItem(item.id)}
                         onUpdate={(payload) => handleUpdateItem(item.id, payload)}
                       />
@@ -283,7 +283,7 @@ export default function Home() {
                     {items.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
-                          No items yet. Use the form on the right to add your first SKU.
+                          No items yet. Sign in as admin to add the first SKU.
                         </td>
                       </tr>
                     ) : null}
@@ -299,7 +299,7 @@ export default function Home() {
               <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-6 shadow-sm">
                 <h3 className="text-base font-semibold text-indigo-900">Add inventory</h3>
                 <p className="text-sm text-indigo-800/80">
-                  Validate SKUs, set thresholds, and track notes. Everything syncs via API.
+                  Validate SKUs, set thresholds, and track notes. Admins only for writes.
                 </p>
                 <form
                   className="mt-4 space-y-3"
@@ -354,10 +354,11 @@ export default function Home() {
                   </div>
                   <button
                     type="submit"
-                    disabled={submitting}
-                    className="inline-flex w-full items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+                    disabled={!canEdit || submitting}
+                    className="inline-flex w-full items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    title={!canEdit ? "Sign in as admin to add inventory" : undefined}
                   >
-                    {submitting ? "Saving…" : "Add item"}
+                    {submitting ? "Saving…" : canEdit ? "Add item" : "Admin only"}
                   </button>
                 </form>
               </div>
@@ -496,10 +497,12 @@ function AuthPanel({
 
 function ItemRow({
   item,
+  canEdit,
   onDelete,
   onUpdate,
 }: {
   item: Item;
+  canEdit: boolean;
   onDelete: () => Promise<void>;
   onUpdate: (payload: Partial<Item>) => Promise<void>;
 }) {
@@ -558,7 +561,9 @@ function ItemRow({
         )}
       </td>
       <td className="px-4 py-3 text-right text-xs text-slate-600">
-        {isEditing ? (
+        {!canEdit ? (
+          <span className="text-slate-400">View only</span>
+        ) : isEditing ? (
           <div className="flex items-center justify-end gap-2">
             <button
               className="rounded border border-slate-200 px-3 py-1 font-medium text-slate-700"
