@@ -11,7 +11,6 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   const user = await requireUser();
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "ADMIN") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
 
   const parsed = itemUpdateSchema.safeParse(await req.json());
   if (!parsed.success) {
@@ -20,10 +19,11 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
 
   const existing = await prisma.item.findUnique({
     where: { id: paramsResolved.id },
+
     select: { id: true, ownerId: true },
   });
 
-  if (!existing || existing.ownerId !== user.id) {
+  if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -69,7 +69,8 @@ export default function Home() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const canEdit = user?.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN";
+  const canEdit = Boolean(user); // users can edit (optimistic updates enabled)
 
   const itemForm = useForm<ItemPayload>({
     defaultValues: {
@@ -126,7 +127,7 @@ export default function Home() {
   };
 
   const handleCreateItem = async (payload: ItemPayload) => {
-    if (!canEdit) {
+    if (!isAdmin) {
       setActionMessage("Sign in as admin to add items.");
       return;
     }
@@ -150,25 +151,33 @@ export default function Home() {
 
   const handleUpdateItem = async (id: string, payload: Partial<Item>) => {
     if (!canEdit) {
-      setActionMessage("Sign in as admin to update items.");
+      setActionMessage("Sign in to update items.");
       return;
     }
 
     setActionMessage(null);
+
+    // Optimistic update
+    const previous = items;
+    setItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...payload } : it)),
+    );
+
     try {
       await jsonFetch(`/api/items/${id}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       });
-      await loadItems();
       setActionMessage("Item updated.");
     } catch (err: unknown) {
+      // revert on failure
+      setItems(previous);
       setActionMessage(err instanceof Error ? err.message : "Could not update item.");
     }
   };
 
   const handleDeleteItem = async (id: string) => {
-    if (!canEdit) {
+    if (!isAdmin) {
       setActionMessage("Sign in as admin to delete items.");
       return;
     }
@@ -276,6 +285,7 @@ export default function Home() {
                         key={item.id}
                         item={item}
                         canEdit={canEdit}
+                        canDelete={isAdmin}
                         onDelete={() => handleDeleteItem(item.id)}
                         onUpdate={(payload) => handleUpdateItem(item.id, payload)}
                       />
@@ -354,11 +364,11 @@ export default function Home() {
                   </div>
                   <button
                     type="submit"
-                    disabled={!canEdit || submitting}
+                    disabled={!isAdmin || submitting}
                     className="inline-flex w-full items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    title={!canEdit ? "Sign in as admin to add inventory" : undefined}
+                    title={!isAdmin ? "Sign in as admin to add inventory" : undefined}
                   >
-                    {submitting ? "Saving…" : canEdit ? "Add item" : "Admin only"}
+                    {submitting ? "Saving…" : isAdmin ? "Add item" : "Admin only"}
                   </button>
                 </form>
               </div>
@@ -498,12 +508,14 @@ function AuthPanel({
 function ItemRow({
   item,
   canEdit,
+  canDelete,
   onDelete,
   onUpdate,
 }: {
   item: Item;
   canEdit: boolean;
-  onDelete: () => Promise<void>;
+  canDelete?: boolean;
+  onDelete?: () => Promise<void>;
   onUpdate: (payload: Partial<Item>) => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -598,15 +610,17 @@ function ItemRow({
             >
               Edit
             </button>
-            <button
-              className="text-rose-600 underline decoration-rose-200 underline-offset-4"
-              onClick={() => {
-                const ok = confirm(`Delete ${item.name}?`);
-                if (ok) onDelete();
-              }}
-            >
-              Delete
-            </button>
+            {canDelete ? (
+              <button
+                className="text-rose-600 underline decoration-rose-200 underline-offset-4"
+                onClick={() => {
+                  const ok = confirm(`Delete ${item.name}?`);
+                  if (ok && onDelete) onDelete();
+                }}
+              >
+                Delete
+              </button>
+            ) : null}
           </div>
         )}
       </td>
